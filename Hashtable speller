@@ -1,0 +1,176 @@
+// Implements a dictionary's functionality
+
+#include <ctype.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "dictionary.h"
+
+// Represents number of buckets in a hash table
+#define N 26
+#define HASHTABLE_SIZE 65536
+
+// Represents a node in a hash table
+typedef struct node
+{
+    char word[LENGTH + 1];
+    struct node *next;
+}
+node;
+
+// Represents a hash table
+node *hashtable[HASHTABLE_SIZE];
+
+// global variable for tracking dictionary size
+unsigned int word_count = 0;
+
+//global boolean for tracking load/unload dictionary operations (need to connect load and unload dictionary operations for speller.c)
+bool loaded = false; // when loaded = false, it means dictionary is unloaded from memory.
+
+
+
+reference://https://www.reddit.com/r/cs50/comments/1x6vc8/pset6_trie_vs_hashtable/
+
+int hash_it(char *needs_hashing) // declare the function, hash_it
+{
+    unsigned int hash = 0;
+    for (int i = 0, n = strlen(needs_hashing); i < n; i++)
+    {
+        hash = (hash << 2) ^ needs_hashing[i];
+    }
+    return hash % HASHTABLE_SIZE;
+}
+
+
+
+// Loads dictionary into memory, returning true if successful else false
+bool load(const char *dictionary)
+{
+    // Initialize hash table
+    for (int i = 0; i < HASHTABLE_SIZE; i++)
+    {
+        hashtable[i] = NULL;
+    }
+
+    // Open dictionary
+    FILE *file = fopen(dictionary, "r");
+    if (file == NULL)
+    {
+        printf("Could not open dictionary.\n");
+        return false;
+    }
+    //word buffer
+    char word[LENGTH + 1];
+
+    // Insert words into hash table
+    while (fscanf(file, "%s", word) != EOF)
+    {
+        // get a space for a new node
+        node *temp = malloc(sizeof(node));
+
+        //copies up to number of characters from the string pointed to, by src(sizeof(word)) to dest(temp->word)
+        strncpy(temp->word, word, sizeof(word));
+
+
+        int index = hash_it(word);
+
+        //if hashtable == NULL
+        if(hashtable[index] == NULL)
+        {
+            hashtable[index] = temp;
+        }
+        //if the hashtable is not empty !!
+        else
+        {
+            //append temp to the start of the linked list
+            temp->next = hashtable[index];
+            hashtable[index] = temp;
+        }
+        // increase word count once word 'becomes' a node
+        word_count++;
+    }
+
+    // Close dictionary
+    fclose(file);
+    loaded = true;
+    // Indicate success
+    return true;
+}
+
+// Returns true if word is in dictionary else false
+bool check(const char *word)
+{
+    // create array to store a copy of word
+    int length = strlen(word) + 1;
+
+    char word_copy[length + 1];
+    for (int i = 0; i < length; i++)
+    {
+        word_copy[i] = tolower(word[i]);
+    }
+    word_copy[length] = '\0';
+
+    // obtain index from hash function for copy of word in text
+    int hashed_index = hash_it(word_copy);
+
+    // create traversal pointer and assign it to first node/element
+    node *trav = hashtable[hashed_index];
+
+    // check until end of linked list
+    while (trav != NULL)
+    {
+        if (strcmp(trav->word, word_copy) != 0)
+        {
+            // check next node
+            trav = trav->next;
+        }
+        else
+        {
+           // word is in dictionary
+           return true;
+        }
+    }
+    return false;
+}
+
+// Returns number of words in dictionary if loaded else 0 if not yet loaded
+unsigned int size(void)
+{
+    //if the file loaded
+    if (loaded)
+    {
+        //return word count
+        return word_count;
+    }
+    // wait until the EOF
+    else
+    {
+        return 0;
+    }
+    return 0;
+}
+
+
+// Unloads dictionary from memory, returning true if successful else false
+bool unload(void)
+{
+    // iterate over the size of the hashtable
+    for(int i = 0; i < HASHTABLE_SIZE; i++)
+    {
+        //initiate a trav node pointing to what each head of hashtable points to
+        node *trav = hashtable[i];
+
+        while(trav)
+        {
+            //create node pointing to elements of your trav pointer
+            node *temp = trav;
+            trav = trav->next;
+
+            //free what inside temp
+            free(temp);
+        }
+    }
+    loaded = false;
+    return true;
+}
